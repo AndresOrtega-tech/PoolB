@@ -1,76 +1,83 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database import engine, Base, get_db, check_database_connection
-from config import settings
 import os
+import traceback
+from database import get_db, check_database_connection
 
-# Crear la aplicación FastAPI
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    debug=settings.DEBUG
-)
+app = FastAPI(title="Pool Banorte API", version="1.0.0")
 
-# Configurar CORS
+# Configuración de CORS
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.get("/")
-async def root():
-    return {
-        "message": "Pool Banorte API is running",
-        "environment": os.getenv("ENVIRONMENT", "development"),
-        "version": settings.APP_VERSION
-    }
+def read_root():
+    return {"message": "Pool Banorte API está funcionando"}
 
 @app.get("/health")
-async def health_check():
-    """Endpoint para verificar el estado de la aplicación y la base de datos"""
+def health_check():
+    """Endpoint para verificar el estado de la API y la base de datos"""
+    print("[DEBUG] Iniciando health check...")
+    
     try:
-        # Usar la función optimizada para verificar conexión
-        db_connected = check_database_connection()
+        db_status = check_database_connection()
+        print(f"[DEBUG] Resultado de check_database_connection: {db_status}")
         
-        if db_connected:
-            return {
-                "status": "healthy",
-                "database": "connected",
-                "app_name": settings.APP_NAME,
-                "version": settings.APP_VERSION,
-                "environment": os.getenv("ENVIRONMENT", "development")
-            }
-        else:
-            return {
-                "status": "unhealthy",
-                "database": "disconnected",
-                "app_name": settings.APP_NAME,
-                "version": settings.APP_VERSION,
-                "environment": os.getenv("ENVIRONMENT", "development"),
-                "error": "Database connection failed"
-            }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "app_name": settings.APP_NAME,
-            "version": settings.APP_VERSION,
+        response = {
+            "status": "healthy" if db_status else "unhealthy",
+            "database": "connected" if db_status else "disconnected",
+            "message": "API funcionando correctamente" if db_status else "Problema con la conexión a la base de datos",
             "environment": os.getenv("ENVIRONMENT", "development"),
-            "error": str(e)
+            "database_url_prefix": os.getenv("DATABASE_URL", "")[:20] + "..." if os.getenv("DATABASE_URL") else "No configurada"
+        }
+        
+        if not db_status:
+            response["error_details"] = "Revisar logs de Vercel para más detalles del error de conexión"
+        
+        return response
+        
+    except Exception as e:
+        print(f"[ERROR] Error en health check: {e}")
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "database": "error",
+            "message": f"Error interno en health check: {str(e)}",
+            "environment": os.getenv("ENVIRONMENT", "development")
         }
 
 @app.get("/health-simple")
-async def health_simple():
-    """Endpoint simple sin verificación de base de datos"""
+def health_check_simple():
+    """Endpoint de salud simple sin verificación de base de datos"""
     return {
         "status": "healthy",
-        "message": "API is running",
+        "message": "API funcionando correctamente",
         "environment": os.getenv("ENVIRONMENT", "development")
+    }
+
+@app.get("/debug-env")
+def debug_environment():
+    """Endpoint para verificar variables de entorno (sin valores sensibles)"""
+    return {
+        "environment": os.getenv("ENVIRONMENT", "not_set"),
+        "pythonpath": os.getenv("PYTHONPATH", "not_set"),
+        "database_url_configured": "yes" if os.getenv("DATABASE_URL") else "no",
+        "database_url_prefix": os.getenv("DATABASE_URL", "")[:30] + "..." if os.getenv("DATABASE_URL") else "not_set",
+        "supabase_anon_key_configured": "yes" if os.getenv("SUPABASE_ANON_KEY") else "no",
+        "supabase_service_key_configured": "yes" if os.getenv("SUPABASE_SERVICE_KEY") else "no",
+        "secret_key_configured": "yes" if os.getenv("SECRET_KEY") else "no",
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS", "not_set"),
+        "algorithm": os.getenv("ALGORITHM", "not_set"),
+        "access_token_expire_minutes": os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "not_set")
     }
 
 if __name__ == "__main__":

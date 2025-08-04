@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import traceback
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
@@ -10,8 +11,11 @@ load_dotenv()
 # Configuración de la base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pool_banorte.db")
 
+print(f"[DEBUG] DATABASE_URL configurada: {DATABASE_URL[:50]}...")  # Solo primeros 50 caracteres por seguridad
+
 # Configuración específica para serverless (Vercel)
 if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
+    print("[DEBUG] Configurando engine para PostgreSQL/Supabase")
     # Configuración optimizada para PostgreSQL/Supabase en serverless
     engine = create_engine(
         DATABASE_URL,
@@ -24,11 +28,14 @@ if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
         connect_args={
             "connect_timeout": 20,
             "application_name": "pool_banorte_vercel",
+            "options": "-c timezone=UTC",
             "sslmode": "require",  # SSL requerido para Supabase
             "target_session_attrs": "read-write"
         }
     )
+    print("[DEBUG] Engine PostgreSQL configurado exitosamente")
 else:
+    print("[DEBUG] Configurando engine para SQLite")
     # Configuración para SQLite (desarrollo local)
     engine = create_engine(
         DATABASE_URL,
@@ -59,9 +66,15 @@ def get_db():
 def check_database_connection():
     """Función para verificar si la conexión a la base de datos está funcionando"""
     try:
+        print("[DEBUG] Intentando conectar a la base de datos...")
         with engine.connect() as connection:
+            print("[DEBUG] Conexión establecida, ejecutando SELECT 1...")
             result = connection.execute(text("SELECT 1"))
+            print("[DEBUG] Query ejecutada exitosamente")
             return True
     except Exception as e:
-        print(f"Error de conexión a la base de datos: {e}")
+        print(f"[ERROR] Error de conexión a la base de datos: {e}")
+        print(f"[ERROR] Tipo de error: {type(e).__name__}")
+        print(f"[ERROR] Traceback completo:")
+        traceback.print_exc()
         return False
