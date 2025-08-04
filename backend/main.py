@@ -5,9 +5,6 @@ from sqlalchemy import text
 from database import engine, Base, get_db
 from config import settings
 
-# Crear las tablas en la base de datos
-Base.metadata.create_all(bind=engine)
-
 # Crear la aplicación FastAPI
 app = FastAPI(
     title=settings.APP_NAME,
@@ -46,18 +43,7 @@ async def health_check(db: Session = Depends(get_db)):
             "database": "disconnected",
             "error": str(e)
         }
-        
-@app.get("/init-db")
-async def init_db(db: Session = Depends(get_db)):
-    """Endpoint para inicializar la base de datos"""
-    try:
-        # Crear las tablas en la base de datos
-        Base.metadata.create_all(bind=engine)
-        return {"message": "Base de datos inicializada correctamente"}
-    except Exception as e:
-        return {"error": f"Error al inicializar la base de datos: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
-    Base.metadata.create_all(bind=engine)
     uvicorn.run(app, host="0.0.0.0", port=8000)
