@@ -15,17 +15,20 @@ if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
     # Configuración optimizada para PostgreSQL/Supabase en serverless
     engine = create_engine(
         DATABASE_URL,
-        pool_size=1,  # Solo 1 conexión en el pool para serverless
+        pool_size=0,  # Sin pool persistente en serverless
         max_overflow=0,  # Sin conexiones adicionales
-        pool_pre_ping=True,  # Verificar conexiones antes de usar
-        pool_recycle=300,  # Reciclar conexiones cada 5 minutos
-        pool_timeout=10,  # Timeout de 10 segundos para obtener conexión
+        pool_pre_ping=False,  # Desactivar pre-ping en serverless
+        pool_recycle=-1,  # Sin reciclaje automático
+        pool_timeout=30,  # Timeout más largo para Vercel
         echo=False,  # Desactivar logs SQL en producción
         connect_args={
-            "connect_timeout": 10,
+            "connect_timeout": 30,
             "application_name": "pool_banorte_vercel",
-            "options": "-c timezone=UTC"
-        }
+            "options": "-c timezone=UTC",
+            "sslmode": "require"  # Forzar SSL para Supabase
+        },
+        # Configuración específica para Vercel
+        strategy='threadlocal'
     )
 else:
     # Configuración para SQLite (desarrollo local)
@@ -59,8 +62,8 @@ def check_database_connection():
     """Función para verificar si la conexión a la base de datos está funcionando"""
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
-        return True
+            result = connection.execute("SELECT 1")
+            return True
     except Exception as e:
         print(f"Error de conexión a la base de datos: {e}")
         return False
