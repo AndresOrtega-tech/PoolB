@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
 import traceback
-from database import get_db, check_database_connection
+from database import get_db, check_database_connection, check_database_connection_direct
 
 app = FastAPI(title="Pool Banorte API", version="1.0.0")
 
@@ -29,19 +29,35 @@ def health_check():
     print("[DEBUG] Iniciando health check...")
     
     try:
-        db_status = check_database_connection()
-        print(f"[DEBUG] Resultado de check_database_connection: {db_status}")
+        # Probar conexión con SQLAlchemy
+        print("[DEBUG] === Probando conexión con SQLAlchemy ===")
+        db_status_sqlalchemy = check_database_connection()
+        print(f"[DEBUG] Resultado SQLAlchemy: {db_status_sqlalchemy}")
+        
+        # Probar conexión directa con psycopg2
+        print("[DEBUG] === Probando conexión directa con psycopg2 ===")
+        db_status_direct = check_database_connection_direct()
+        print(f"[DEBUG] Resultado psycopg2 directo: {db_status_direct}")
+        
+        # Determinar estado general
+        db_connected = db_status_sqlalchemy or db_status_direct
         
         response = {
-            "status": "healthy" if db_status else "unhealthy",
-            "database": "connected" if db_status else "disconnected",
-            "message": "API funcionando correctamente" if db_status else "Problema con la conexión a la base de datos",
+            "status": "healthy" if db_connected else "unhealthy",
+            "database": "connected" if db_connected else "disconnected",
+            "message": "API funcionando correctamente" if db_connected else "Problema con la conexión a la base de datos",
             "environment": os.getenv("ENVIRONMENT", "development"),
-            "database_url_prefix": os.getenv("DATABASE_URL", "")[:20] + "..." if os.getenv("DATABASE_URL") else "No configurada"
+            "database_url_prefix": os.getenv("DATABASE_URL", "")[:20] + "..." if os.getenv("DATABASE_URL") else "No configurada",
+            "connection_tests": {
+                "sqlalchemy": "success" if db_status_sqlalchemy else "failed",
+                "psycopg2_direct": "success" if db_status_direct else "failed"
+            }
         }
         
-        if not db_status:
-            response["error_details"] = "Revisar logs de Vercel para más detalles del error de conexión"
+        if not db_connected:
+            response["error_details"] = "Ambos métodos de conexión fallaron. Revisar logs para detalles."
+        elif db_status_direct and not db_status_sqlalchemy:
+            response["note"] = "Conexión directa funciona, pero SQLAlchemy falla. Problema de configuración de pool."
         
         return response
         

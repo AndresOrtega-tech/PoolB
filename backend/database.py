@@ -16,21 +16,29 @@ print(f"[DEBUG] DATABASE_URL configurada: {DATABASE_URL[:50]}...")  # Solo prime
 # Configuración específica para serverless (Vercel)
 if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
     print("[DEBUG] Configurando engine para PostgreSQL/Supabase")
-    # Configuración optimizada para PostgreSQL/Supabase en serverless
+    
+    # Configuración específica para Vercel serverless + Supabase
     engine = create_engine(
         DATABASE_URL,
-        pool_size=1,  # Mínimo pool para serverless
-        max_overflow=0,  # Sin conexiones adicionales
-        pool_pre_ping=True,  # Verificar conexiones
-        pool_recycle=3600,  # Reciclar cada hora
-        pool_timeout=20,  # Timeout de 20 segundos
-        echo=False,  # Desactivar logs SQL en producción
+        # Pool configuration para serverless
+        pool_size=0,  # No mantener conexiones persistentes
+        max_overflow=0,  # Sin overflow
+        pool_pre_ping=False,  # Desactivar pre-ping en serverless
+        pool_recycle=-1,  # No reciclar conexiones
+        pool_timeout=30,  # Timeout más largo
+        echo=False,  # Sin logs SQL
+        # Configuración de conexión optimizada para Supabase
         connect_args={
-            "connect_timeout": 20,
+            "connect_timeout": 30,  # Timeout más largo
+            "command_timeout": 30,
             "application_name": "pool_banorte_vercel",
-            "options": "-c timezone=UTC",
-            "sslmode": "require",  # SSL requerido para Supabase
-            "target_session_attrs": "read-write"
+            "sslmode": "require",  # SSL obligatorio
+            "sslcert": None,
+            "sslkey": None,
+            "sslrootcert": None,
+            "options": "-c timezone=UTC -c statement_timeout=30000",
+            # Forzar IPv4 para evitar problemas de IPv6 en Vercel
+            "host": DATABASE_URL.split("@")[1].split(":")[0] if "@" in DATABASE_URL else None,
         }
     )
     print("[DEBUG] Engine PostgreSQL configurado exitosamente")
@@ -76,5 +84,45 @@ def check_database_connection():
         print(f"[ERROR] Error de conexión a la base de datos: {e}")
         print(f"[ERROR] Tipo de error: {type(e).__name__}")
         print(f"[ERROR] Traceback completo:")
+        traceback.print_exc()
+        return False
+
+# Función alternativa para conexión directa (sin pool) en serverless
+def check_database_connection_direct():
+    """Función alternativa que usa conexión directa sin pool para serverless"""
+    import psycopg2
+    from urllib.parse import urlparse
+    
+    try:
+        print("[DEBUG] Intentando conexión directa con psycopg2...")
+        
+        # Parsear la DATABASE_URL
+        parsed = urlparse(DATABASE_URL)
+        
+        # Configuración de conexión directa
+        conn_params = {
+            "host": parsed.hostname,
+            "port": parsed.port or 5432,
+            "database": parsed.path[1:],  # Remover el '/' inicial
+            "user": parsed.username,
+            "password": parsed.password,
+            "sslmode": "require",
+            "connect_timeout": 30,
+        }
+        
+        print(f"[DEBUG] Conectando a host: {conn_params['host']}:{conn_params['port']}")
+        
+        # Intentar conexión directa
+        with psycopg2.connect(**conn_params) as conn:
+            with conn.cursor() as cursor:
+                print("[DEBUG] Ejecutando SELECT 1 con psycopg2...")
+                cursor.execute("SELECT 1")
+                result = cursor.fetchone()
+                print(f"[DEBUG] Resultado: {result}")
+                return True
+                
+    except Exception as e:
+        print(f"[ERROR] Error en conexión directa: {e}")
+        print(f"[ERROR] Tipo de error: {type(e).__name__}")
         traceback.print_exc()
         return False
