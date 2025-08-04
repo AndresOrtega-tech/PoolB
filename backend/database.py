@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -15,17 +15,17 @@ if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
     # Configuración optimizada para PostgreSQL/Supabase en serverless
     engine = create_engine(
         DATABASE_URL,
-        pool_size=0,  # Sin pool persistente en serverless
+        pool_size=1,  # Mínimo pool para serverless
         max_overflow=0,  # Sin conexiones adicionales
-        pool_pre_ping=False,  # Desactivar pre-ping en serverless
-        pool_recycle=-1,  # Sin reciclaje automático
-        pool_timeout=30,  # Timeout más largo para Vercel
+        pool_pre_ping=True,  # Verificar conexiones
+        pool_recycle=3600,  # Reciclar cada hora
+        pool_timeout=20,  # Timeout de 20 segundos
         echo=False,  # Desactivar logs SQL en producción
         connect_args={
-            "connect_timeout": 30,
+            "connect_timeout": 20,
             "application_name": "pool_banorte_vercel",
-            "options": "-c timezone=UTC",
-            "sslmode": "require"  # Forzar SSL para Supabase
+            "sslmode": "require",  # SSL requerido para Supabase
+            "target_session_attrs": "read-write"
         }
     )
 else:
@@ -60,7 +60,7 @@ def check_database_connection():
     """Función para verificar si la conexión a la base de datos está funcionando"""
     try:
         with engine.connect() as connection:
-            result = connection.execute("SELECT 1")
+            result = connection.execute(text("SELECT 1"))
             return True
     except Exception as e:
         print(f"Error de conexión a la base de datos: {e}")
