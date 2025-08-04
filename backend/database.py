@@ -26,9 +26,7 @@ if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
             "application_name": "pool_banorte_vercel",
             "options": "-c timezone=UTC",
             "sslmode": "require"  # Forzar SSL para Supabase
-        },
-        # Configuración específica para Vercel
-        strategy='threadlocal'
+        }
     )
 else:
     # Configuración para SQLite (desarrollo local)
