@@ -224,3 +224,6 @@ Dockerfile.prod
 
 # Custom additions for future use
 # Add your specific ignores below this line
+
+# Internal development files
+TODO.md
