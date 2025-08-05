@@ -6,6 +6,8 @@ import os
 import traceback
 from database import get_db, check_database_connection, check_database_connection_direct
 
+from routers.users import router as users_router
+
 app = FastAPI(title="Pool Banorte API", version="1.0.0")
 
 # Configuración de CORS
@@ -18,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(users_router)
+
 
 @app.get("/")
 def read_root():
