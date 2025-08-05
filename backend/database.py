@@ -30,7 +30,6 @@ if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
         # Configuración de conexión optimizada para Supabase
         connect_args={
             "connect_timeout": 30,  # Timeout más largo
-            "command_timeout": 30,
             "application_name": "pool_banorte_vercel",
             "sslmode": "require",  # SSL obligatorio
             "sslcert": None,
