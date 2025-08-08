@@ -153,11 +153,11 @@ def debug_table_schema(db: Session = Depends(get_db)):
     try:
         print("[DEBUG] === Verificando esquema de tabla users ===")
         
-        # Consultar información de columnas de la tabla users
+        # Consultar información de columnas de la tabla users en el esquema public
         result = db.execute(text("""
             SELECT column_name, data_type, is_nullable, column_default
             FROM information_schema.columns 
-            WHERE table_name = 'users' 
+            WHERE table_schema = 'public' AND table_name = 'users' 
             ORDER BY ordinal_position;
         """))
         
