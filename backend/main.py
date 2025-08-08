@@ -101,6 +101,52 @@ def debug_environment():
         "access_token_expire_minutes": os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "not_set")
     }
 
+@app.post("/debug-create-user")
+def debug_create_user(db: Session = Depends(get_db)):
+    """Endpoint de debug para probar la creación de usuarios"""
+    try:
+        print("[DEBUG] === Iniciando debug de creación de usuario ===")
+        
+        # Importar dependencias
+        from services.user_services import UserService
+        from schemas.user_schemas import UserCreate
+        import uuid
+        
+        print("[DEBUG] Dependencias importadas correctamente")
+        
+        # Crear datos de prueba
+        test_user_data = UserCreate(
+            email=f"debug-{uuid.uuid4()}@example.com",
+            name="Debug User",
+            password="password123"
+        )
+        
+        print(f"[DEBUG] Datos de usuario creados: {test_user_data.email}")
+        
+        # Intentar crear usuario
+        print("[DEBUG] Llamando a UserService.create_user...")
+        created_user = UserService.create_user(db, test_user_data)
+        
+        print(f"[DEBUG] Usuario creado exitosamente: {created_user.id}")
+        
+        return {
+            "status": "success",
+            "message": "Usuario creado exitosamente en modo debug",
+            "user_id": str(created_user.id),
+            "user_email": created_user.email,
+            "user_name": created_user.name
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] Error en debug_create_user: {e}")
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": f"Error al crear usuario: {str(e)}",
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
