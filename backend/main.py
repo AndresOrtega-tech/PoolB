@@ -183,8 +183,85 @@ def debug_table_schema(db: Session = Depends(get_db)):
         print(f"[ERROR] Error verificando esquema: {e}")
         traceback.print_exc()
         return {
+             "status": "error",
+             "message": f"Error verificando esquema: {str(e)}",
+             "error_type": type(e).__name__
+         }
+
+@app.post("/debug-create-table")
+def debug_create_table(db: Session = Depends(get_db)):
+    """Endpoint para crear la tabla users personalizada"""
+    try:
+        print("[DEBUG] === Creando tabla users personalizada ===")
+        
+        # Crear la tabla users en el esquema public
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS public.users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email VARCHAR(255) UNIQUE NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        
+        -- Crear índice en email
+        CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+        
+        -- Crear función para actualizar updated_at automáticamente
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = NOW();
+            RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+        
+        -- Crear trigger para updated_at
+        DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+        CREATE TRIGGER update_users_updated_at
+            BEFORE UPDATE ON public.users
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        """
+        
+        # Ejecutar la creación de la tabla
+        db.execute(text(create_table_sql))
+        db.commit()
+        
+        print("[DEBUG] Tabla users creada exitosamente")
+        
+        # Verificar que la tabla se creó correctamente
+        result = db.execute(text("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'users' 
+            ORDER BY ordinal_position;
+        """))
+        
+        columns = []
+        for row in result:
+            columns.append({
+                "column_name": row[0],
+                "data_type": row[1],
+                "is_nullable": row[2]
+            })
+        
+        return {
+            "status": "success",
+            "message": "Tabla users creada exitosamente",
+            "table_schema": "public",
+            "table_name": "users",
+            "columns": columns,
+            "total_columns": len(columns)
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] Error creando tabla: {e}")
+        traceback.print_exc()
+        return {
             "status": "error",
-            "message": f"Error verificando esquema: {str(e)}",
+            "message": f"Error creando tabla: {str(e)}",
             "error_type": type(e).__name__
         }
 
