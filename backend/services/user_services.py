@@ -6,6 +6,7 @@ import uuid
 
 from models import User
 from schemas.user_schemas import UserCreate, UserUpdate
+from utils.auth import hash_password
 
 class UserService:
     
@@ -23,10 +24,14 @@ class UserService:
     
     @staticmethod
     def create_user(db: Session, user_data: UserCreate) -> User:
+        # Hashear la contraseña antes de guardarla
+        hashed_password = hash_password(user_data.password)
+        
         db_user = User(
             id=uuid.uuid4(),
             email=user_data.email,
-            name=user_data.name
+            name=user_data.name,
+            password=hashed_password
         )
         db.add(db_user)
         db.commit()
@@ -40,6 +45,11 @@ class UserService:
             return None
         
         update_data = user_data.dict(exclude_unset=True)
+        
+        # Si se está actualizando la contraseña, hashearla
+        if 'password' in update_data and update_data['password'] is not None:
+            update_data['password'] = hash_password(update_data['password'])
+        
         for field, value in update_data.items():
             setattr(db_user, field, value)
         
