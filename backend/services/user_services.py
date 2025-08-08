@@ -6,7 +6,19 @@ import uuid
 
 from models import User
 from schemas.user_schemas import UserCreate, UserUpdate
-# from utils.auth import hash_password  # Comentado temporalmente para debug
+
+# Importar hash_password con manejo de errores para Vercel
+try:
+    from utils.auth import hash_password
+    BCRYPT_AVAILABLE = True
+except ImportError as e:
+    print(f"[WARNING] bcrypt no disponible: {e}")
+    BCRYPT_AVAILABLE = False
+    
+    def hash_password(password: str) -> str:
+        """Fallback hash function si bcrypt no está disponible"""
+        import hashlib
+        return hashlib.sha256(password.encode()).hexdigest()
 
 class UserService:
     
@@ -25,8 +37,15 @@ class UserService:
     @staticmethod
     def create_user(db: Session, user_data: UserCreate) -> User:
         # Hashear la contraseña antes de guardarla
-        # hashed_password = hash_password(user_data.password)  # Comentado temporalmente
-        hashed_password = "temp_password_hash"  # Temporal para debug
+        try:
+            hashed_password = hash_password(user_data.password)
+            print(f"[DEBUG] Password hashed successfully, bcrypt available: {BCRYPT_AVAILABLE}")
+        except Exception as e:
+            print(f"[ERROR] Error hashing password: {e}")
+            # Fallback a hash simple si bcrypt falla
+            import hashlib
+            hashed_password = hashlib.sha256(user_data.password.encode()).hexdigest()
+            print("[WARNING] Using SHA256 fallback for password")
         
         db_user = User(
             id=uuid.uuid4(),
@@ -49,8 +68,15 @@ class UserService:
         
         # Si se está actualizando la contraseña, hashearla
         if 'password' in update_data and update_data['password'] is not None:
-            # update_data['password'] = hash_password(update_data['password'])  # Comentado temporalmente
-            update_data['password'] = "temp_updated_password_hash"  # Temporal para debug
+            try:
+                update_data['password'] = hash_password(update_data['password'])
+                print(f"[DEBUG] Password updated and hashed, bcrypt available: {BCRYPT_AVAILABLE}")
+            except Exception as e:
+                print(f"[ERROR] Error hashing updated password: {e}")
+                # Fallback a hash simple si bcrypt falla
+                import hashlib
+                update_data['password'] = hashlib.sha256(update_data['password'].encode()).hexdigest()
+                print("[WARNING] Using SHA256 fallback for updated password")
         
         for field, value in update_data.items():
             setattr(db_user, field, value)
