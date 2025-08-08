@@ -260,8 +260,96 @@ def debug_create_table(db: Session = Depends(get_db)):
         print(f"[ERROR] Error creando tabla: {e}")
         traceback.print_exc()
         return {
+             "status": "error",
+             "message": f"Error creando tabla: {str(e)}",
+             "error_type": type(e).__name__
+         }
+
+@app.post("/debug-add-timestamps")
+def debug_add_timestamps(db: Session = Depends(get_db)):
+    """Endpoint para agregar las columnas created_at y updated_at a la tabla users"""
+    try:
+        print("[DEBUG] === Agregando columnas de timestamp ===")
+        
+        # Agregar las columnas created_at y updated_at si no existen
+        add_columns_sql = """
+        -- Agregar created_at si no existe
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_schema = 'public' 
+                          AND table_name = 'users' 
+                          AND column_name = 'created_at') THEN
+                ALTER TABLE public.users ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+            END IF;
+        END $$;
+        
+        -- Agregar updated_at si no existe
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_schema = 'public' 
+                          AND table_name = 'users' 
+                          AND column_name = 'updated_at') THEN
+                ALTER TABLE public.users ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+            END IF;
+        END $$;
+        
+        -- Crear función para actualizar updated_at automáticamente
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = NOW();
+            RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+        
+        -- Crear trigger para updated_at
+        DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+        CREATE TRIGGER update_users_updated_at
+            BEFORE UPDATE ON public.users
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        """
+        
+        # Ejecutar la adición de columnas
+        db.execute(text(add_columns_sql))
+        db.commit()
+        
+        print("[DEBUG] Columnas de timestamp agregadas exitosamente")
+        
+        # Verificar que las columnas se agregaron correctamente
+        result = db.execute(text("""
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'users' 
+            ORDER BY ordinal_position;
+        """))
+        
+        columns = []
+        for row in result:
+            columns.append({
+                "column_name": row[0],
+                "data_type": row[1],
+                "is_nullable": row[2],
+                "column_default": row[3]
+            })
+        
+        return {
+            "status": "success",
+            "message": "Columnas de timestamp agregadas exitosamente",
+            "table_schema": "public",
+            "table_name": "users",
+            "columns": columns,
+            "total_columns": len(columns)
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] Error agregando columnas: {e}")
+        traceback.print_exc()
+        return {
             "status": "error",
-            "message": f"Error creando tabla: {str(e)}",
+            "message": f"Error agregando columnas: {str(e)}",
             "error_type": type(e).__name__
         }
 
