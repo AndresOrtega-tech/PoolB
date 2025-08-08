@@ -141,10 +141,51 @@ def debug_create_user(db: Session = Depends(get_db)):
         print(f"[ERROR] Error en debug_create_user: {e}")
         traceback.print_exc()
         return {
+             "status": "error",
+             "message": f"Error al crear usuario: {str(e)}",
+             "error_type": type(e).__name__,
+             "traceback": traceback.format_exc()
+         }
+
+@app.get("/debug-table-schema")
+def debug_table_schema(db: Session = Depends(get_db)):
+    """Endpoint para verificar el esquema de la tabla users"""
+    try:
+        print("[DEBUG] === Verificando esquema de tabla users ===")
+        
+        # Consultar información de columnas de la tabla users
+        result = db.execute(text("""
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns 
+            WHERE table_name = 'users' 
+            ORDER BY ordinal_position;
+        """))
+        
+        columns = []
+        for row in result:
+            columns.append({
+                "column_name": row[0],
+                "data_type": row[1],
+                "is_nullable": row[2],
+                "column_default": row[3]
+            })
+        
+        print(f"[DEBUG] Columnas encontradas: {len(columns)}")
+        
+        return {
+            "status": "success",
+            "table_name": "users",
+            "columns": columns,
+            "total_columns": len(columns)
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] Error verificando esquema: {e}")
+        traceback.print_exc()
+        return {
             "status": "error",
-            "message": f"Error al crear usuario: {str(e)}",
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
+            "message": f"Error verificando esquema: {str(e)}",
+            "error_type": type(e).__name__
         }
 
 if __name__ == "__main__":
