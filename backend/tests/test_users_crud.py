@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any
 # Configuración para diferentes entornos
 ENVIRONMENTS = {
     "local": "http://localhost:8000",
-    "vercel": "https://pool-banorte-api.vercel.app",  # Cambiar por tu URL de Vercel
+    "vercel": "https://pool-b.vercel.app/",  # Cambiar por tu URL de Vercel
     "custom": None  # Se puede especificar manualmente
 }
 
