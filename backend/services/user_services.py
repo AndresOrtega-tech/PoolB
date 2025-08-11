@@ -1,51 +1,33 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from typing import List, Optional
+from models import User
+from schemas.user_schemas import UserCreate, UserCreateDB, UserUpdate, UserUpdateDB
+from utils.auth import hash_password, verify_password
+from typing import Optional, List
 from uuid import UUID
 import uuid
-
-from models import User
-from schemas.user_schemas import UserCreate, UserUpdate
-
-# Importar hash_password con manejo de errores para Vercel
-try:
-    from utils.auth import hash_password
-    BCRYPT_AVAILABLE = True
-except ImportError as e:
-    print(f"[WARNING] bcrypt no disponible: {e}")
-    BCRYPT_AVAILABLE = False
-    
-    def hash_password(password: str) -> str:
-        """Fallback hash function si bcrypt no está disponible"""
-        import hashlib
-        return hashlib.sha256(password.encode()).hexdigest()
 
 class UserService:
     
     @staticmethod
     def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
+        """Obtener lista de usuarios con paginación"""
         return db.query(User).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_user_by_id(db: Session, user_id: UUID) -> Optional[User]:
+        """Obtener usuario por ID"""
         return db.query(User).filter(User.id == user_id).first()
     
     @staticmethod
     def get_user_by_email(db: Session, email: str) -> Optional[User]:
+        """Obtener usuario por email"""
         return db.query(User).filter(User.email == email).first()
     
     @staticmethod
     def create_user(db: Session, user_data: UserCreate) -> User:
+        """Crear un nuevo usuario con contraseña hasheada"""
         # Hashear la contraseña antes de guardarla
-        try:
-            hashed_password = hash_password(user_data.password)
-            print(f"[DEBUG] Password hashed successfully, bcrypt available: {BCRYPT_AVAILABLE}")
-        except Exception as e:
-            print(f"[ERROR] Error hashing password: {e}")
-            # Fallback a hash simple si bcrypt falla
-            import hashlib
-            hashed_password = hashlib.sha256(user_data.password.encode()).hexdigest()
-            print("[WARNING] Using SHA256 fallback for password")
+        hashed_password = hash_password(user_data.password)
         
         db_user = User(
             id=uuid.uuid4(),
@@ -60,6 +42,7 @@ class UserService:
     
     @staticmethod
     def update_user(db: Session, user_id: UUID, user_data: UserUpdate) -> Optional[User]:
+        """Actualizar un usuario existente"""
         db_user = db.query(User).filter(User.id == user_id).first()
         if not db_user:
             return None
@@ -68,15 +51,7 @@ class UserService:
         
         # Si se está actualizando la contraseña, hashearla
         if 'password' in update_data and update_data['password'] is not None:
-            try:
-                update_data['password'] = hash_password(update_data['password'])
-                print(f"[DEBUG] Password updated and hashed, bcrypt available: {BCRYPT_AVAILABLE}")
-            except Exception as e:
-                print(f"[ERROR] Error hashing updated password: {e}")
-                # Fallback a hash simple si bcrypt falla
-                import hashlib
-                update_data['password'] = hashlib.sha256(update_data['password'].encode()).hexdigest()
-                print("[WARNING] Using SHA256 fallback for updated password")
+            update_data['password'] = hash_password(update_data['password'])
         
         for field, value in update_data.items():
             setattr(db_user, field, value)
@@ -87,6 +62,7 @@ class UserService:
     
     @staticmethod
     def delete_user(db: Session, user_id: UUID) -> bool:
+        """Eliminar un usuario"""
         db_user = db.query(User).filter(User.id == user_id).first()
         if not db_user:
             return False
@@ -95,6 +71,48 @@ class UserService:
         db.commit()
         return True
 
+    @staticmethod
+    def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+        """
+        Autenticar un usuario verificando email y contraseña
+        
+        Args:
+            db: Sesión de base de datos
+            email: Email del usuario
+            password: Contraseña en texto plano
+            
+        Returns:
+            User si las credenciales son válidas, None en caso contrario
+        """
+        user = UserService.get_user_by_email(db, email)
+        if not user:
+            return None
+            
+        if not verify_password(password, user.password):
+            return None
+        
+        return user
+    
+    @staticmethod
+    def register_user(db: Session, user_data: UserCreate) -> User:
+        """
+        Registrar un nuevo usuario
+        
+        Args:
+            db: Sesión de base de datos
+            user_data: Datos del usuario a crear
+            
+        Returns:
+            User creado
+            
+        Raises:
+            ValueError: Si el email ya está registrado
+        """
+        existing_user = UserService.get_user_by_email(db, user_data.email)
+        if existing_user:
+            raise ValueError("El email ya está registrado en el sistema")
+        
+        return UserService.create_user(db, user_data)
 
 
 

@@ -7,6 +7,8 @@ import traceback
 from database import get_db, check_database_connection, check_database_connection_direct
 
 from routers.users import router as users_router
+from routers.auth import router as auth_router
+
 
 app = FastAPI(title="Pool Banorte API", version="1.0.0")
 
@@ -22,6 +24,8 @@ app.add_middleware(
 )
 
 app.include_router(users_router)
+app.include_router(auth_router)
+
 
 
 @app.get("/")

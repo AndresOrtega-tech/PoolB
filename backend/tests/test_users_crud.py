@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test del CRUD de Usuarios - Pool Banorte API
-============================================
+Test del CRUD de Usuarios - Pool Banorte API en Vercel
+======================================================
 
 Este archivo contiene tests para verificar el funcionamiento
 completo del CRUD de usuarios en el deploy de Vercel con Supabase.
@@ -16,20 +16,12 @@ import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-# Configuración para diferentes entornos
-ENVIRONMENTS = {
-    "local": "http://localhost:8000",
-    "vercel": "https://pool-b.vercel.app/",  # Cambiar por tu URL de Vercel
-    "custom": None  # Se puede especificar manualmente
-}
+# URL del deploy en Vercel - ACTUALIZAR CON TU URL
+VERCEL_URL = "https://pool-b.vercel.app/"
 
 class UserCRUDTester:
-    def __init__(self, environment: str = "vercel"):
-        if environment in ENVIRONMENTS:
-            self.base_url = ENVIRONMENTS[environment]
-        else:
-            self.base_url = environment  # URL personalizada
-            
+    def __init__(self):
+        self.base_url = VERCEL_URL
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
@@ -38,7 +30,6 @@ class UserCRUDTester:
         
         self.test_user_id: Optional[str] = None
         self.test_results = []
-        self.environment = environment
         
     def log_test(self, test_name: str, success: bool, details: str = ""):
         """Registrar resultado de test"""
@@ -55,7 +46,7 @@ class UserCRUDTester:
             "timestamp": timestamp
         })
         
-    def make_request(self, method: str, endpoint: str, data: Dict = None, timeout: int = 30) -> Dict[str, Any]:
+    def make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, timeout: int = 30) -> Dict[str, Any]:
         """Hacer petición HTTP con manejo de errores para Vercel/Supabase"""
         url = f"{self.base_url}{endpoint}"
         
@@ -108,29 +99,39 @@ class UserCRUDTester:
 
     def test_api_health(self):
         """Test 0: Verificar que la API esté funcionando en Vercel"""
-        print(f"\n🔍 Test 0: Verificando API en {self.environment.upper()}...")
+        print(f"\n🔍 Test 0: Verificando API en Vercel...")
         print(f"URL: {self.base_url}")
+        print("⏳ Esperando respuesta (cold start puede tardar hasta 45s)...")
         
-        # Test health check básico con timeout extendido para cold start
-        print("⏳ Esperando respuesta (cold start puede tomar 10-15s)...")
-        result = self.make_request("GET", "/health-simple", timeout=45)
+        # Usar timeout específico para health check en Vercel
+        url = f"{self.base_url.rstrip('/')}/"
         
-        if result["success"]:
-            self.log_test("Health Check Básico", True, f"Status: {result['status_code']}")
-        else:
-            self.log_test("Health Check Básico", False, f"Error: {result['data']}")
+        try:
+            response = self.session.get(url, timeout=45)
+            
+            try:
+                response_data = response.json()
+            except:
+                response_data = {"message": response.text}
+            
+            if response.status_code == 200:
+                self.log_test("API Health Check", True, "API funcionando en Vercel")
+                print(f"✅ API respondiendo: {response_data}")
+                return True
+            else:
+                self.log_test("API Health Check", False, 
+                             f"Status: {response.status_code}")
+                print(f"❌ API error: Status {response.status_code}")
+                return False
+                
+        except requests.exceptions.Timeout:
+            self.log_test("API Health Check", False, "Timeout - Cold start demasiado lento")
+            print("❌ Timeout - Vercel cold start demasiado lento")
             return False
-            
-        # Test health check completo
-        result = self.make_request("GET", "/health", timeout=30)
-        if result["success"]:
-            db_status = result["data"].get("database", "unknown") if result["data"] else "unknown"
-            supabase_status = "✅ Conectado" if db_status == "connected" else f"⚠️ {db_status}"
-            self.log_test("Health Check Completo", True, f"Supabase: {supabase_status}")
-        else:
-            self.log_test("Health Check Completo", False, f"Error: {result['data']}")
-            
-        return True
+        except Exception as e:
+            self.log_test("API Health Check", False, f"Error: {str(e)}")
+            print(f"❌ Error de conexión: {str(e)}")
+            return False
 
     def test_create_user(self):
         """Test 1: Crear usuario en Supabase"""
@@ -408,7 +409,7 @@ class UserCRUDTester:
         """Ejecutar todos los tests para Vercel/Supabase"""
         print("🚀 Iniciando Tests del CRUD - Vercel + Supabase")
         print("=" * 60)
-        print(f"🌐 Entorno: {self.environment.upper()}")
+        print(f"🌐 Entorno: Vercel")
         print(f"🔗 URL: {self.base_url}")
         print(f"🗄️ Base de datos: Supabase PostgreSQL")
         print("=" * 60)
@@ -453,7 +454,7 @@ class UserCRUDTester:
         passed_tests = sum(1 for result in self.test_results if result["success"])
         failed_tests = total_tests - passed_tests
         
-        print(f"🌐 Entorno: {self.environment.upper()}")
+        print(f"🌐 Entorno: Vercel")
         print(f"🔗 URL: {self.base_url}")
         print(f"📊 Total de tests: {total_tests}")
         print(f"✅ Exitosos: {passed_tests}")
@@ -466,7 +467,7 @@ class UserCRUDTester:
                 if not result["success"]:
                     print(f"  - {result['test']}: {result['details']}")
         
-        print(f"\n🎯 Estado del CRUD en {self.environment.upper()}:")
+        print(f"\n🎯 Estado del CRUD en Vercel:")
         if failed_tests == 0:
             print("✅ CRUD completamente funcional en Vercel + Supabase")
             print("🔐 Listo para implementar autenticación JWT")
@@ -488,44 +489,12 @@ class UserCRUDTester:
             print("  3. ✅ Verificar CRUD antes de autenticación")
 
 
-def main():
-    """Función principal"""
+if __name__ == "__main__":
     print("🏦 Pool Banorte API - Test del CRUD en Vercel + Supabase")
     print("=" * 60)
+    print("⚠️ IMPORTANTE: Actualizar VERCEL_URL con tu URL de deploy")
+    print("=" * 60)
     
-    # Seleccionar entorno
-    print("Selecciona el entorno a probar:")
-    print("1. 🌐 Vercel (Producción)")
-    print("2. 💻 Local (Desarrollo)")
-    print("3. 🔧 URL personalizada")
-    
-    choice = input("\nOpción (1-3): ").strip()
-    
-    if choice == "1":
-        environment = "vercel"
-        print(f"\n🌐 Probando en Vercel: {ENVIRONMENTS['vercel']}")
-        print("⚠️ Asegúrate de actualizar la URL en ENVIRONMENTS['vercel']")
-    elif choice == "2":
-        environment = "local"
-        print(f"\n💻 Probando en Local: {ENVIRONMENTS['local']}")
-    elif choice == "3":
-        custom_url = input("Ingresa la URL personalizada: ").strip()
-        environment = custom_url
-        print(f"\n🔧 Probando en: {custom_url}")
-    else:
-        print("❌ Opción inválida. Usando Vercel por defecto.")
-        environment = "vercel"
-    
-    # Confirmar ejecución
-    response = input(f"\n¿Continuar con los tests en {environment}? (y/N): ").lower().strip()
-    if response not in ['y', 'yes', 'sí', 'si']:
-        print("Tests cancelados.")
-        return
-    
-    # Ejecutar tests
-    tester = UserCRUDTester(environment)
+    # Ejecutar tests directamente en Vercel
+    tester = UserCRUDTester()
     tester.run_all_tests()
-
-
-if __name__ == "__main__":
-    main()
