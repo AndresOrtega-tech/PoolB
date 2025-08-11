@@ -1,6 +1,87 @@
 # 📚 Pool Banorte API - Documentación Técnica
 
-## 📋 Índice
+### 1. Introducción 🚀
+
+Este documento describe el prototipo de una solución de "money pool" o colectas de dinero, integrada con la infraestructura de Banorte. El objetivo es crear una herramienta que permita a los usuarios organizar, participar y gestionar colectas de dinero de manera eficiente y segura para diversos fines.
+
+### 2. Casos de Uso y Funcionalidades ✨
+
+El prototipo se centra en tres tipos de colectas y sus flujos de usuario asociados:
+
+#### Casos de Uso Principales
+- **Pago Único (Futuro)**: Colectas para eventos específicos como regalos o donaciones.
+- **Pago Recurrente (Futuro)**: Colectas para metas a largo plazo, con contribuciones periódicas (ej. ahorrar para un viaje).
+- **Presente**: Colectas para gastos inmediatos y urgentes (ej. dividir una cuenta).
+
+#### Flujos de Usuario
+- **Creación del Pool**: El organizador define el nombre, descripción, monto objetivo, fecha límite y configuraciones (privacidad, anonimato).
+- **Gestión de Participantes**: El organizador invita a otros usuarios mediante un enlace o número de cuenta, y los participantes aceptan o rechazan la invitación.
+- **Contribución**: Los participantes realizan sus pagos, y el sistema actualiza el progreso de la colecta.
+- **Retiro de Dinero**: El organizador solicita el retiro de los fondos una vez cumplido el objetivo.
+- **Gestión del Pool**: El organizador puede editar detalles o cancelar el pool, lo que activa el proceso de reembolso.
+- **Reutilización**: Se puede usar un pool existente como plantilla para crear uno nuevo.
+
+### 3. Arquitectura del Sistema 🏗️
+
+El proyecto sigue una arquitectura cliente-servidor modular.
+
+#### Componentes Principales
+- **Frontend**: Interfaz de usuario construida con React y estilizada con Tailwind CSS. Se encarga de la visualización y la interacción del usuario.
+- **Backend**: Lógica de negocio implementada con FastAPI (Python). Se comunica con la base de datos y gestiona las APIs.
+- **Base de Datos**: Almacenamiento de datos relacional con PostgreSQL/MySQL.
+- **Integración**: Módulo para la comunicación con la infraestructura de pagos y verificación de Banorte.
+
+### 4. Diseño de la Base de Datos 💾
+
+Se ha diseñado un esquema de base de datos relacional para gestionar las entidades del proyecto de forma eficiente.
+
+#### Tablas Principales
+- **Usuarios**: Información de los usuarios.
+- **Pools**: Detalles de cada colecta (organizador, monto, fecha, estado).
+- **Participantes_Pool**: Relación entre usuarios y pools, registrando las contribuciones.
+- **Transacciones**: Registro de todos los movimientos de dinero (contribuciones, retiros, reembolsos).
+- **Comentarios**: Almacena los comentarios dentro de los pools.
+- **Notificaciones**: Guarda las notificaciones para cada usuario.
+
+### 5. Diseño de APIs 💻
+
+El backend expone una serie de APIs RESTful para que el frontend interactúe con los datos y la lógica de negocio.
+
+#### Endpoints Clave (Ejemplos)
+
+| Módulo | Verbo HTTP | Endpoint | Descripción |
+|--------|------------|----------|-------------|
+| Pools | POST | `/api/pools/create` | Crea una nueva colecta |
+| Pools | GET | `/api/pools/{id_pool}` | Obtiene los detalles de un pool |
+| Pools | PUT | `/api/pools/{id_pool}` | Edita un pool existente |
+| Transacciones | POST | `/api/pools/{id_pool}/contribute` | Registra una nueva contribución |
+| Transacciones | POST | `/api/pools/{id_pool}/withdraw` | Inicia el proceso de retiro |
+| Notificaciones | GET | `/api/notifications` | Obtiene las notificaciones del usuario |
+
+### 6. Vistas y Mockups 🖼️
+
+La interfaz de usuario se ha diseñado para ser intuitiva y clara, con las siguientes vistas principales:
+
+- **Listado de Pools**: Pantalla de inicio para ver el resumen de las colectas.
+- **Formulario de Creación**: Para configurar los parámetros de una nueva colecta.
+- **Detalle del Pool**: Muestra el progreso, participantes y opciones de gestión.
+- **Contribución**: Interfaz para que los participantes realicen sus pagos.
+- **Invitación**: Permite al organizador compartir el enlace del pool.
+
+### 7. Cronograma del Proyecto 📅
+
+El proyecto se ha planificado en fases de desarrollo para garantizar una gestión organizada y eficiente.
+
+- **Fase 1 (Mayo)**: Requisitos y Planificación
+- **Fase 2 (Junio)**: Diseño y Arquitectura
+- **Fase 3 (Julio - Agosto)**: Desarrollo Backend
+- **Fase 4 (Agosto - Septiembre)**: Desarrollo Frontend
+- **Fase 5 (Octubre)**: Pruebas y Ajustes
+- **Fase 6 (Noviembre)**: Cierre del Proyecto
+
+---
+
+## 📋 Índice de Documentación Técnica
 
 1. [Arquitectura del Sistema](#-arquitectura-del-sistema)
 2. [Estructura del Proyecto](#-estructura-del-proyecto)
@@ -145,12 +226,92 @@ class Pool(BaseModel):
     target_amount = Column(Numeric(15, 2), nullable=False)
     current_amount = Column(Numeric(15, 2), default=0.00)
     deadline = Column(DateTime(timezone=True))
-    visibility = Column(String(50), default="private")
+    visibility = Column(String(50), default="private")  # private, public, link_only
     allow_partial_contributions = Column(Boolean, default=True)
     allow_anonymous_contributions = Column(Boolean, default=False)
     comments_enabled = Column(Boolean, default=True)
+    status = Column(String(50), default="active")  # active, completed, cancelled
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+```
+
+### Modelo Participantes_Pool 🔄 **PENDIENTE**
+
+```python
+class PoolParticipant(BaseModel):
+    __tablename__ = "pool_participants"
+    
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    pool_id = Column(String, ForeignKey("pools.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    contribution_amount = Column(Numeric(15, 2), default=0.00)
+    expected_amount = Column(Numeric(15, 2))  # Monto esperado del participante
+    status = Column(String(50), default="invited")  # invited, accepted, contributed, declined
+    is_anonymous = Column(Boolean, default=False)
+    invited_at = Column(DateTime(timezone=True), server_default=func.now())
+    joined_at = Column(DateTime(timezone=True))
+    last_contribution_at = Column(DateTime(timezone=True))
+    
+    # Índice único para evitar duplicados
+    __table_args__ = (UniqueConstraint('pool_id', 'user_id', name='unique_pool_participant'),)
+```
+
+### Modelo Transacciones 🔄 **PENDIENTE**
+
+```python
+class Transaction(BaseModel):
+    __tablename__ = "transactions"
+    
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    pool_id = Column(String, ForeignKey("pools.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    transaction_type = Column(String(50), nullable=False)  # contribution, withdrawal, refund
+    amount = Column(Numeric(15, 2), nullable=False)
+    status = Column(String(50), default="pending")  # pending, completed, failed, cancelled
+    payment_method = Column(String(100))  # banorte_transfer, card, etc.
+    external_transaction_id = Column(String(255))  # ID de Banorte
+    description = Column(Text)
+    metadata = Column(JSON)  # Información adicional de la transacción
+    processed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+```
+
+### Modelo Comentarios 🔄 **PENDIENTE**
+
+```python
+class Comment(BaseModel):
+    __tablename__ = "comments"
+    
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    pool_id = Column(String, ForeignKey("pools.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    is_anonymous = Column(Boolean, default=False)
+    parent_comment_id = Column(String, ForeignKey("comments.id"))  # Para respuestas
+    is_deleted = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+```
+
+### Modelo Notificaciones 🔄 **PENDIENTE**
+
+```python
+class Notification(BaseModel):
+    __tablename__ = "notifications"
+    
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    pool_id = Column(String, ForeignKey("pools.id"))  # Opcional, para notificaciones de pool
+    notification_type = Column(String(100), nullable=False)  # pool_invitation, contribution_received, etc.
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    action_url = Column(String(500))  # URL para acción relacionada
+    metadata = Column(JSON)  # Información adicional
+    expires_at = Column(DateTime(timezone=True))  # Para notificaciones temporales
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    read_at = Column(DateTime(timezone=True))
 ```
 
 ---
@@ -234,6 +395,195 @@ class UserResponseWithToken(BaseModel):
     token_type: str
 ```
 
+### Esquemas de Pool 🔄 **PENDIENTES**
+
+#### PoolBase
+```python
+class PoolBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    target_amount: Decimal = Field(..., gt=0, decimal_places=2)
+    deadline: Optional[datetime] = None
+    visibility: str = Field(default="private", regex="^(private|public|link_only)$")
+    allow_partial_contributions: bool = True
+    allow_anonymous_contributions: bool = False
+    comments_enabled: bool = True
+```
+
+#### PoolCreate
+```python
+class PoolCreate(PoolBase):
+    pass
+```
+
+#### PoolUpdate
+```python
+class PoolUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    target_amount: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
+    deadline: Optional[datetime] = None
+    visibility: Optional[str] = Field(None, regex="^(private|public|link_only)$")
+    allow_partial_contributions: Optional[bool] = None
+    allow_anonymous_contributions: Optional[bool] = None
+    comments_enabled: Optional[bool] = None
+```
+
+#### PoolResponse
+```python
+class PoolResponse(PoolBase):
+    id: str
+    organizer_id: str
+    current_amount: Decimal
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+```
+
+#### PoolDetailResponse
+```python
+class PoolDetailResponse(PoolResponse):
+    organizer: UserResponse
+    participants_count: int
+    transactions_count: int
+    progress_percentage: float
+```
+
+### Esquemas de Participantes 🔄 **PENDIENTES**
+
+#### ParticipantResponse
+```python
+class ParticipantResponse(BaseModel):
+    id: str
+    pool_id: str
+    user_id: str
+    user: Optional[UserResponse] = None  # Solo si no es anónimo
+    contribution_amount: Decimal
+    expected_amount: Optional[Decimal]
+    status: str
+    is_anonymous: bool
+    invited_at: datetime
+    joined_at: Optional[datetime]
+    last_contribution_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+```
+
+#### InviteParticipants
+```python
+class InviteParticipants(BaseModel):
+    user_emails: List[EmailStr] = Field(..., min_items=1, max_items=50)
+    expected_amounts: Optional[Dict[str, Decimal]] = None  # email -> amount
+    message: Optional[str] = Field(None, max_length=500)
+```
+
+### Esquemas de Transacciones 🔄 **PENDIENTES**
+
+#### ContributionCreate
+```python
+class ContributionCreate(BaseModel):
+    amount: Decimal = Field(..., gt=0, decimal_places=2)
+    payment_method: str = Field(..., min_length=1)
+    is_anonymous: bool = False
+    message: Optional[str] = Field(None, max_length=500)
+```
+
+#### WithdrawalRequest
+```python
+class WithdrawalRequest(BaseModel):
+    amount: Optional[Decimal] = Field(None, gt=0, decimal_places=2)  # None = todo
+    bank_account: str = Field(..., min_length=1)
+    reason: Optional[str] = Field(None, max_length=500)
+```
+
+#### TransactionResponse
+```python
+class TransactionResponse(BaseModel):
+    id: str
+    pool_id: str
+    user_id: str
+    transaction_type: str
+    amount: Decimal
+    status: str
+    payment_method: Optional[str]
+    external_transaction_id: Optional[str]
+    description: Optional[str]
+    processed_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+```
+
+#### TransactionDetailResponse
+```python
+class TransactionDetailResponse(TransactionResponse):
+    user: Optional[UserResponse] = None
+    pool: PoolResponse
+    metadata: Optional[Dict] = None
+```
+
+### Esquemas de Comentarios 🔄 **PENDIENTES**
+
+#### CommentCreate
+```python
+class CommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000)
+    is_anonymous: bool = False
+    parent_comment_id: Optional[str] = None
+```
+
+#### CommentUpdate
+```python
+class CommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000)
+```
+
+#### CommentResponse
+```python
+class CommentResponse(BaseModel):
+    id: str
+    pool_id: str
+    user_id: str
+    user: Optional[UserResponse] = None  # Solo si no es anónimo
+    content: str
+    is_anonymous: bool
+    parent_comment_id: Optional[str]
+    replies_count: int = 0
+    is_deleted: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+```
+
+### Esquemas de Notificaciones 🔄 **PENDIENTES**
+
+#### NotificationResponse
+```python
+class NotificationResponse(BaseModel):
+    id: str
+    user_id: str
+    pool_id: Optional[str]
+    notification_type: str
+    title: str
+    message: str
+    is_read: bool
+    action_url: Optional[str]
+    expires_at: Optional[datetime]
+    created_at: datetime
+    read_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+```
+
 ---
 
 ## ⚙️ Servicios y Lógica de Negocio
@@ -312,6 +662,47 @@ class UserService:
 | `POST` | `/auth/login` | Autenticación | `UserLogin` | `Token` | 🔄 |
 | `POST` | `/auth/register` | Registro | `UserCreate` | `UserResponseWithToken` | 🔄 |
 | `POST` | `/auth/refresh` | Renovar token | `RefreshToken` | `Token` | 🔄 |
+
+### Endpoints de Pools 🔄 **PENDIENTES**
+
+| Método | Endpoint | Descripción | Request Body | Response | Estado |
+|--------|----------|-------------|--------------|----------|--------|
+| `POST` | `/api/pools/create` | Crear nueva colecta | `PoolCreate` | `PoolResponse` | 🔄 |
+| `GET` | `/api/pools/{pool_id}` | Obtener detalles del pool | - | `PoolDetailResponse` | 🔄 |
+| `PUT` | `/api/pools/{pool_id}` | Editar pool existente | `PoolUpdate` | `PoolResponse` | 🔄 |
+| `DELETE` | `/api/pools/{pool_id}` | Cancelar pool | - | `204 No Content` | 🔄 |
+| `GET` | `/api/pools/` | Listar pools del usuario | - | `List[PoolResponse]` | 🔄 |
+| `POST` | `/api/pools/{pool_id}/invite` | Invitar participantes | `InviteParticipants` | `InvitationResponse` | 🔄 |
+| `POST` | `/api/pools/{pool_id}/join` | Unirse a pool | - | `ParticipantResponse` | 🔄 |
+| `GET` | `/api/pools/{pool_id}/participants` | Listar participantes | - | `List[ParticipantResponse]` | 🔄 |
+
+### Endpoints de Transacciones 🔄 **PENDIENTES**
+
+| Método | Endpoint | Descripción | Request Body | Response | Estado |
+|--------|----------|-------------|--------------|----------|--------|
+| `POST` | `/api/pools/{pool_id}/contribute` | Realizar contribución | `ContributionCreate` | `TransactionResponse` | 🔄 |
+| `POST` | `/api/pools/{pool_id}/withdraw` | Solicitar retiro | `WithdrawalRequest` | `TransactionResponse` | 🔄 |
+| `GET` | `/api/pools/{pool_id}/transactions` | Historial de transacciones | - | `List[TransactionResponse]` | 🔄 |
+| `GET` | `/api/transactions/{transaction_id}` | Detalle de transacción | - | `TransactionDetailResponse` | 🔄 |
+| `POST` | `/api/transactions/{transaction_id}/cancel` | Cancelar transacción | - | `TransactionResponse` | 🔄 |
+
+### Endpoints de Notificaciones 🔄 **PENDIENTES**
+
+| Método | Endpoint | Descripción | Request Body | Response | Estado |
+|--------|----------|-------------|--------------|----------|--------|
+| `GET` | `/api/notifications` | Obtener notificaciones del usuario | - | `List[NotificationResponse]` | 🔄 |
+| `PUT` | `/api/notifications/{notification_id}/read` | Marcar como leída | - | `NotificationResponse` | 🔄 |
+| `DELETE` | `/api/notifications/{notification_id}` | Eliminar notificación | - | `204 No Content` | 🔄 |
+| `POST` | `/api/notifications/mark-all-read` | Marcar todas como leídas | - | `{"marked_count": int}` | 🔄 |
+
+### Endpoints de Comentarios 🔄 **PENDIENTES**
+
+| Método | Endpoint | Descripción | Request Body | Response | Estado |
+|--------|----------|-------------|--------------|----------|--------|
+| `GET` | `/api/pools/{pool_id}/comments` | Obtener comentarios del pool | - | `List[CommentResponse]` | 🔄 |
+| `POST` | `/api/pools/{pool_id}/comments` | Agregar comentario | `CommentCreate` | `CommentResponse` | 🔄 |
+| `PUT` | `/api/comments/{comment_id}` | Editar comentario | `CommentUpdate` | `CommentResponse` | 🔄 |
+| `DELETE` | `/api/comments/{comment_id}` | Eliminar comentario | - | `204 No Content` | 🔄 |
 
 ### Parámetros de Query
 
