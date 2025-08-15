@@ -226,5 +226,40 @@ Dockerfile.prod
 # Add your specific ignores below this line
 
 # Internal development files
-TODO.md
 ERROR.md
+
+# Test files and directories
+backend/tests/
+tests/
+test_*.py
+*_test.py
+*.test.py
+
+# Development and debugging files
+*.debug
+*.trace
+
+# Local configuration overrides
+local_config.py
+dev_config.py
+
+# Temporary development files
+*.tmp
+*.temp
+scratch/
+playground/
+
+# API documentation generated files
+api_docs/
+docs/build/
+
+# Performance and profiling
+*.prof
+*.profile
+
+# Local database files for development
+local.db
+dev.db
+test.db
+
+
