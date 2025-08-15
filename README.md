@@ -9,23 +9,27 @@ Una API REST desarrollada con FastAPI para gestionar colectas de dinero (pools) 
 - Base de datos configurada en Supabase
 - API desplegada en Vercel
 - Sistema de autenticación con contraseñas hasheadas (bcrypt)
-- Tests automatizados (100% de éxito)
+- **Sistema de autenticación JWT completo**
+- **Endpoints de autenticación (login, register, refresh)**
+- **Middleware de autenticación y protección de rutas**
+- Tests automatizados (95% de éxito en auth, 76.5% en CRUD con auth)
 - Conexión dual a base de datos (SQLAlchemy + psycopg2)
 - Optimización para entornos serverless
 
 🔄 **EN DESARROLLO:**
-- Sistema de autenticación JWT
 - Endpoints para gestión de pools
 - Sistema de participantes y contribuciones
+- Integración con APIs de Banorte
 
 ## 🛠️ Tecnologías
 
 - **Backend**: FastAPI (Python)
 - **Base de Datos**: PostgreSQL (Supabase)
 - **ORM**: SQLAlchemy
-- **Autenticación**: bcrypt + JWT (en desarrollo)
+- **Autenticación**: bcrypt + JWT (OAuth2 + Bearer Token)
 - **Despliegue**: Vercel
 - **Testing**: Requests + pytest
+- **Seguridad**: python-jose, passlib, JWT tokens
 
 ## 📋 Requisitos
 
@@ -65,6 +69,11 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:6543/p
 SUPABASE_URL=https://[PROJECT-ID].supabase.co
 SUPABASE_ANON_KEY=[ANON-KEY]
 SUPABASE_SERVICE_KEY=[SERVICE-KEY]
+
+# Autenticación JWT
+JWT_SECRET=tu-clave-secreta-muy-segura-de-al-menos-32-caracteres
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Configuración de la aplicación
 ALLOWED_ORIGINS=http://localhost:3000,https://tu-frontend.vercel.app
@@ -112,15 +121,22 @@ CREATE TABLE IF NOT EXISTS pools (
 - `GET /health` - Verificación completa del estado (incluye conexión a BD)
 - `GET /health-simple` - Verificación básica del estado
 
-### Usuarios
-- `POST /users/` - Crear usuario
-- `GET /users/` - Listar usuarios (con paginación)
-- `GET /users/{user_id}` - Obtener usuario por ID
-- `PUT /users/{user_id}` - Actualizar usuario completo
-- `PATCH /users/{user_id}` - Actualizar usuario parcial
-- `DELETE /users/{user_id}` - Eliminar usuario
+### 🔐 Autenticación
+- `POST /auth/register` - Registro de nuevos usuarios
+- `POST /auth/login` - Login con OAuth2 (form data)
+- `POST /auth/login-json` - Login con JSON
+- `POST /auth/refresh` - Renovar token de acceso
+- `GET /auth/me` - Obtener información del usuario actual (requiere auth)
 
-### Documentación Interactiva
+### 👥 Usuarios (Protegidos con JWT)
+- `POST /users/` - Crear usuario
+- `GET /users/` - Listar usuarios (con paginación) 🔒
+- `GET /users/{user_id}` - Obtener usuario por ID 🔒
+- `PUT /users/{user_id}` - Actualizar usuario completo 🔒
+- `PATCH /users/{user_id}` - Actualizar usuario parcial 🔒
+- `DELETE /users/{user_id}` - Eliminar usuario 🔒
+
+### 📚 Documentación Interactiva
 - `GET /docs` - Swagger UI (documentación interactiva)
 - `GET /redoc` - ReDoc (documentación alternativa)
 
@@ -139,6 +155,9 @@ CREATE TABLE IF NOT EXISTS pools (
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_KEY`
+   - `JWT_SECRET` (clave secreta segura de al menos 32 caracteres)
+   - `JWT_ALGORITHM=HS256`
+   - `ACCESS_TOKEN_EXPIRE_MINUTES=30`
    - `ALLOWED_ORIGINS`
    - `ENVIRONMENT=production`
 
@@ -164,15 +183,40 @@ El sistema implementa dos métodos de conexión:
 
 ## 🧪 Testing
 
-### Ejecutar tests
+### Ejecutar tests de autenticación
 ```bash
-cd backend/tests
-python test_users_crud.py
+cd backend
+python tests/test_auth_complete.py
+```
+
+### Ejecutar tests de CRUD con autenticación
+```bash
+cd backend
+python tests/test_users_crud.py
+```
+
+### Ejecutar todos los tests con pytest
+```bash
+cd backend
+python -m pytest tests/ -v
 ```
 
 ### Verificar Estado de la API
 ```bash
 curl https://tu-api.vercel.app/health
+```
+
+### Probar autenticación
+```bash
+# Registrar usuario
+curl -X POST "https://tu-api.vercel.app/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","name":"Test User","password":"password123"}'
+
+# Login
+curl -X POST "https://tu-api.vercel.app/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=test@example.com&password=password123"
 ```
 
 ### Respuesta esperada:
@@ -198,18 +242,28 @@ POOL_BANORTE/
 │   ├── index.py                    # Punto de entrada para Vercel
 │   ├── requirements.txt            # Dependencias Python
 │   ├── vercel.json                 # Configuración de Vercel
+│   ├── pytest.ini                 # Configuración de pytest
 │   ├── .env.example                # Ejemplo de variables de entorno
+│   ├── dependencies/
+│   │   ├── __init__.py
+│   │   └── auth.py                 # Dependencias de autenticación JWT
 │   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── auth.py                 # Endpoints de autenticación JWT
 │   │   └── users.py                # Endpoints de usuarios
 │   ├── schemas/
+│   │   ├── __init__.py
 │   │   └── user_schemas.py         # Esquemas Pydantic
 │   ├── services/
+│   │   ├── __init__.py
 │   │   └── user_services.py        # Lógica de negocio
 │   ├── utils/
+│   │   ├── __init__.py
 │   │   └── auth.py                 # Utilidades de autenticación
 │   └── tests/
-│       ├── test_users_crud.py      # Tests del CRUD de usuarios
-│       └── test_vercel_quick.py    # Tests rápidos
+│       ├── README.md               # Documentación de tests
+│       ├── test_auth_complete.py   # Tests completos de autenticación
+│       └── test_users_crud.py      # Tests del CRUD de usuarios
 ├── .gitignore                      # Archivos ignorados por Git
 ├── README.md                       # Este archivo
 ├── TODO.md                         # Lista de tareas
@@ -243,9 +297,21 @@ Si encuentras algún problema o tienes preguntas:
 - ✅ **Base de Datos**: Esquema implementado y optimizado
 - ✅ **Despliegue**: Configurado para Vercel serverless
 - ✅ **Sistema de Usuarios**: CRUD completo y funcional
-- ✅ **Testing**: Suite de tests automatizados
-- 🔄 **En Desarrollo**: Sistema de autenticación JWT
-- 📋 **Próximo**: Endpoints CRUD para pools y participantes
+- ✅ **Autenticación JWT**: Sistema completo implementado
+- ✅ **Middleware de Seguridad**: Protección de rutas implementada
+- ✅ **Testing**: Suite de tests automatizados (95% auth, 76.5% CRUD)
+- 🔄 **En Desarrollo**: Endpoints CRUD para pools y participantes
+- 📋 **Próximo**: Sistema de pools y transacciones
+
+### 🎯 Progreso General: **~80% completado** para MVP básico
+
+### 🚀 Últimos Cambios Implementados:
+- ✅ **Sistema de autenticación JWT completo**
+- ✅ **Endpoints de registro, login y refresh**
+- ✅ **Middleware de autenticación con Bearer tokens**
+- ✅ **Protección de rutas sensibles**
+- ✅ **Tests automatizados de autenticación**
+- ✅ **Integración OAuth2 con FastAPI**
 
 ---
 
